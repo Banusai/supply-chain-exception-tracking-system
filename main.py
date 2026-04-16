@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS events (
     shipment_id INTEGER,
     status TEXT,
     location TEXT,
-    event_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    event_time TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """)
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS exceptions (
     shipment_id INTEGER,
     exception_type TEXT,
     message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """)
 
@@ -49,14 +49,17 @@ conn.commit()
 # -------------------------
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"request": request}
+    )
 
 # -------------------------
-# GET SHIPMENTS (LATEST STATUS)
+# GET SHIPMENTS
 # -------------------------
 @app.get("/shipments")
 def get_shipments():
-
     cursor.execute("""
         SELECT 
             s.id,
@@ -72,21 +75,17 @@ def get_shipments():
         FROM shipments s
         ORDER BY s.id DESC
     """)
-
-    data = cursor.fetchall()
-    return {"shipments": data}
+    return {"shipments": cursor.fetchall()}
 
 # -------------------------
 # CREATE SHIPMENT
 # -------------------------
 @app.post("/shipment")
 def create_shipment(tracking_id: str):
-
     cursor.execute(
         "INSERT INTO shipments (tracking_id, status) VALUES (?, ?)",
         (tracking_id, "CREATED")
     )
-
     conn.commit()
     return {"message": "Shipment created"}
 
@@ -111,7 +110,19 @@ def add_event(shipment_id: int, status: str, location: str):
     )
     last = cursor.fetchone()
 
+    # -------------------------
+    # SAFE TIME PARSING
+    # -------------------------
+    last_time = None
+    if last:
+        try:
+            last_time = datetime.strptime(last[1], "%Y-%m-%d %H:%M:%S")
+        except:
+            last_time = datetime.now()
+
+    # -------------------------
     # SEQUENCE ERROR
+    # -------------------------
     if last:
         last_status = last[0]
         if valid_flow.index(status) < valid_flow.index(last_status):
@@ -120,21 +131,30 @@ def add_event(shipment_id: int, status: str, location: str):
                 (shipment_id, "SEQUENCE_ERROR", "Invalid status order")
             )
 
+    # -------------------------
     # DUPLICATE EVENT
+    # -------------------------
     if last and last[0] == status:
         cursor.execute(
             "INSERT INTO exceptions (shipment_id, exception_type, message) VALUES (?, ?, ?)",
             (shipment_id, "DUPLICATE_EVENT", "Duplicate status received")
         )
 
-    # DELAY DETECTION
-    if last:
-        last_time = datetime.fromisoformat(last[1])
-        if datetime.now() - last_time > timedelta(minutes=2):
-            cursor.execute(
-                "INSERT INTO exceptions (shipment_id, exception_type, message) VALUES (?, ?, ?)",
-                (shipment_id, "DELAY", "Shipment delayed")
-            )
+    # -------------------------
+    # DELAY DETECTION (FIXED)
+    # -------------------------
+    if last_time:
+        time_diff = datetime.now() - last_time
+
+        # Ignore very old data (more than 1 hour)
+        if time_diff < timedelta(hours=1):
+
+            # Demo delay threshold (10 sec)
+            if time_diff > timedelta(seconds=10):
+                cursor.execute(
+                    "INSERT INTO exceptions (shipment_id, exception_type, message) VALUES (?, ?, ?)",
+                    (shipment_id, "DELAY", "Shipment delayed")
+                )
 
     # Insert event
     cursor.execute(
@@ -151,22 +171,16 @@ def add_event(shipment_id: int, status: str, location: str):
 # -------------------------
 @app.get("/exceptions")
 def get_exceptions():
-
     cursor.execute("SELECT * FROM exceptions")
-    data = cursor.fetchall()
-
-    return {"exceptions": data}
+    return {"exceptions": cursor.fetchall()}
 
 # -------------------------
 # GET SHIPMENT TIMELINE
 # -------------------------
 @app.get("/shipment/{shipment_id}")
 def get_shipment(shipment_id: int):
-
     cursor.execute(
         "SELECT status, location, event_time FROM events WHERE shipment_id=?",
         (shipment_id,)
     )
-
-    data = cursor.fetchall()
-    return {"timeline": data}
+    return {"timeline": cursor.fetchall()}
