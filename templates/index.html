@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Supply Chain Exception Dashboard</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+display:flex;
+background:#f4f6fb;
+}
+
+/* Sidebar */
+.sidebar{
+width:230px;
+background:#1e40af;
+height:100vh;
+color:white;
+padding:20px;
+}
+
+.sidebar h2{
+margin-bottom:30px;
+}
+
+.sidebar a{
+display:block;
+padding:10px;
+margin:5px 0;
+border-radius:6px;
+cursor:pointer;
+}
+
+.sidebar a:hover{
+background:rgba(255,255,255,0.15);
+}
+
+/* Main */
+.main{
+flex:1;
+padding:25px;
+}
+
+.header{
+font-size:24px;
+font-weight:600;
+margin-bottom:20px;
+}
+
+/* Cards */
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 2px 8px rgba(0,0,0,0.08);
+margin-bottom:20px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
+}
+
+input,select{
+width:100%;
+padding:10px;
+margin-top:8px;
+margin-bottom:12px;
+border-radius:6px;
+border:1px solid #ccc;
+}
+
+button{
+background:#2563eb;
+color:white;
+border:none;
+padding:10px;
+border-radius:6px;
+cursor:pointer;
+}
+
+button:hover{
+background:#1d4ed8;
+}
+
+/* Exception */
+.exception{
+background:#fff7ed;
+padding:12px;
+margin-top:10px;
+border-radius:8px;
+border-left:5px solid orange;
+}
+
+.badge{
+padding:3px 8px;
+border-radius:6px;
+color:white;
+font-size:12px;
+}
+
+.delay{ background:red }
+.sequence{ background:orange }
+.duplicate{ background:#2563eb }
+
+/* Table */
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #eee;
+}
+
+th{
+background:#f1f5f9;
+}
+
+/* Timeline */
+.timeline-item{
+padding:10px;
+margin:10px 0;
+background:white;
+border-left:5px solid #2563eb;
+border-radius:6px;
+}
+
+/* Progress */
+.progress-bar{
+height:20px;
+background:#e5e7eb;
+border-radius:10px;
+overflow:hidden;
+margin-top:10px;
+}
+
+.progress{
+height:100%;
+width:0%;
+background:#2563eb;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="sidebar">
+<h2>Supply Chain</h2>
+
+<a onclick="showDashboard()">Dashboard</a>
+<a onclick="showShipments()">Shipments</a>
+</div>
+
+<div class="main">
+
+<div class="header">Supply Chain Exception Dashboard</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+
+<div class="grid">
+
+<div class="card">
+<h3>Create Shipment</h3>
+<input id="tracking" placeholder="Tracking ID">
+<button onclick="createShipment()">Create</button>
+</div>
+
+<div class="card">
+<h3>Add Event</h3>
+<input id="shipment" placeholder="Shipment ID">
+
+<select id="status">
+<option>CREATED</option>
+<option>PICKED_UP</option>
+<option>IN_TRANSIT</option>
+<option>OUT_FOR_DELIVERY</option>
+<option>DELIVERED</option>
+</select>
+
+<input id="location" placeholder="Location">
+<button onclick="addEvent()">Add Event</button>
+</div>
+
+</div>
+
+<div class="card">
+<h3>Shipment Exceptions</h3>
+
+<input id="filterShipment" placeholder="Shipment ID">
+<button onclick="loadExceptions()">Show Exceptions</button>
+
+<div id="result"></div>
+</div>
+
+<div class="card">
+<h3>Shipment Timeline</h3>
+
+<input id="timelineId" placeholder="Shipment ID">
+<button onclick="loadTimeline()">View Timeline</button>
+
+<div id="timeline"></div>
+
+<div class="progress-bar">
+<div id="progress" class="progress"></div>
+</div>
+
+</div>
+
+</div>
+
+<!-- SHIPMENTS -->
+<div id="shipments" class="card" style="display:none">
+
+<h3>All Shipments</h3>
+
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Tracking ID</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody id="shipmentsTable"></tbody>
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+function showDashboard(){
+document.getElementById("dashboard").style.display="block"
+document.getElementById("shipments").style.display="none"
+}
+
+async function showShipments(){
+document.getElementById("dashboard").style.display="none"
+document.getElementById("shipments").style.display="block"
+
+let res = await fetch("/shipments")
+let data = await res.json()
+
+let html=""
+
+data.shipments.forEach(s=>{
+html+=`
+<tr>
+<td>${s[0]}</td>
+<td>${s[1]}</td>
+<td>${s[2]}</td>
+</tr>
+`
+})
+
+document.getElementById("shipmentsTable").innerHTML=html
+}
+
+async function createShipment(){
+let id=document.getElementById("tracking").value
+
+let res=await fetch(`/shipment?tracking_id=${id}`,{method:"POST"})
+let data=await res.json()
+
+alert(data.message)
+}
+
+async function addEvent(){
+
+let id=document.getElementById("shipment").value
+let status=document.getElementById("status").value
+let location=document.getElementById("location").value
+
+let res=await fetch(`/event?shipment_id=${id}&status=${status}&location=${location}`,{method:"POST"})
+let data=await res.json()
+
+alert(data.message)
+}
+
+async function loadExceptions(){
+
+let filterId=document.getElementById("filterShipment").value
+
+let res=await fetch("/exceptions")
+let data=await res.json()
+
+let html=""
+
+data.exceptions.forEach(e=>{
+
+if(e[1]==filterId){
+
+let cls="sequence"
+if(e[2]=="DELAY") cls="delay"
+if(e[2]=="DUPLICATE_EVENT") cls="duplicate"
+
+html+=`
+<div class="exception">
+<b>Shipment:</b> ${e[1]}<br>
+<span class="badge ${cls}">${e[2]}</span><br><br>
+<b>Message:</b> ${e[3]}<br>
+<b>Time:</b> ${e[4]}
+</div>
+`
+}
+
+})
+
+document.getElementById("result").innerHTML=html
+}
+
+async function loadTimeline(){
+
+let id=document.getElementById("timelineId").value
+
+let res=await fetch(`/shipment/${id}`)
+let data=await res.json()
+
+let html=""
+let lastStatus=""
+
+data.timeline.forEach(e=>{
+lastStatus=e[0]
+
+html+=`
+<div class="timeline-item">
+<b>${e[0]}</b><br>
+Location: ${e[1]}<br>
+Time: ${e[2]}
+</div>
+`
+})
+
+document.getElementById("timeline").innerHTML=html
+
+let stages=["CREATED","PICKED_UP","IN_TRANSIT","OUT_FOR_DELIVERY","DELIVERED"]
+
+let percent=((stages.indexOf(lastStatus)+1)/stages.length)*100
+
+document.getElementById("progress").style.width=percent+"%"
+}
+
+</script>
+
+</body>
+</html>
