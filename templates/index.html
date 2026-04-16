@@ -109,6 +109,7 @@ font-size:12px;
 .delay{ background:red }
 .sequence{ background:orange }
 .duplicate{ background:#2563eb }
+.invalid{ background:black }
 
 /* Table */
 table{
@@ -148,6 +149,14 @@ height:100%;
 width:0%;
 background:#2563eb;
 }
+
+/* Metrics */
+.metric{
+padding:10px;
+background:#eef2ff;
+border-radius:8px;
+margin-top:10px;
+}
 </style>
 
 </head>
@@ -186,12 +195,21 @@ background:#2563eb;
 <option>IN_TRANSIT</option>
 <option>OUT_FOR_DELIVERY</option>
 <option>DELIVERED</option>
+<option>INVALID_STATUS</option>
 </select>
 
 <input id="location" placeholder="Location">
 <button onclick="addEvent()">Add Event</button>
 </div>
 
+</div>
+
+<!-- ✅ METRICS CARD -->
+<div class="card">
+<h3>System Metrics</h3>
+<button onclick="loadMetrics()">Refresh Metrics</button>
+
+<div id="metrics"></div>
 </div>
 
 <div class="card">
@@ -287,7 +305,19 @@ let location=document.getElementById("location").value
 let res=await fetch(`/event?shipment_id=${id}&status=${status}&location=${location}`,{method:"POST"})
 let data=await res.json()
 
-alert(data.message)
+alert("Event processed. Exception detected: " + data.exception_detected)
+}
+
+async function loadMetrics(){
+let res = await fetch("/metrics")
+let data = await res.json()
+
+document.getElementById("metrics").innerHTML = `
+<div class="metric">Total Events: ${data.total_events}</div>
+<div class="metric">Total Exceptions: ${data.total_exceptions}</div>
+<div class="metric">Detected Exceptions: ${data.detected_exceptions}</div>
+<div class="metric">Detection Rate: ${data.detection_rate}%</div>
+`
 }
 
 async function loadExceptions(){
@@ -306,6 +336,7 @@ if(e[1]==filterId){
 let cls="sequence"
 if(e[2]=="DELAY") cls="delay"
 if(e[2]=="DUPLICATE_EVENT") cls="duplicate"
+if(e[2]=="INVALID_STATUS") cls="invalid"
 
 html+=`
 <div class="exception">
@@ -339,18 +370,12 @@ html+=`
 <div class="timeline-item">
 <b>${e[0]}</b><br>
 Location: ${e[1]}<br>
-Time: <span class="live-time"></span>
+Time: ${e[2]}
 </div>
 `
 })
 
 document.getElementById("timeline").innerHTML=html
-
-setInterval(() => {
-    document.querySelectorAll(".live-time").forEach(el => {
-        el.innerText = new Date().toLocaleString();
-    });
-}, 1000);
 
 let stages=["CREATED","PICKED_UP","IN_TRANSIT","OUT_FOR_DELIVERY","DELIVERED"]
 
