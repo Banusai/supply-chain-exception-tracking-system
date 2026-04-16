@@ -339,12 +339,18 @@ html+=`
 <div class="timeline-item">
 <b>${e[0]}</b><br>
 Location: ${e[1]}<br>
-Time: ${e[2]}
+Time: <span class="live-time"></span>
 </div>
 `
 })
 
 document.getElementById("timeline").innerHTML=html
+
+setInterval(() => {
+    document.querySelectorAll(".live-time").forEach(el => {
+        el.innerText = new Date().toLocaleString();
+    });
+}, 1000);
 
 let stages=["CREATED","PICKED_UP","IN_TRANSIT","OUT_FOR_DELIVERY","DELIVERED"]
 
